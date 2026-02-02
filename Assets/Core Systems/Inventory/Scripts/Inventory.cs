@@ -9,6 +9,9 @@ public class Inventory : MonoBehaviour
 
     [SerializeField] public UnityEvent onInventoryUpdated;
 
+    // Optional: Add a capacity limit later
+    // [SerializeField] private int maxSlots = 20;
+
     public bool HasEnough(ItemData itemToFind, int amountNeeded)
     {
         int totalAmount = 0;
@@ -22,11 +25,16 @@ public class Inventory : MonoBehaviour
         return totalAmount >= amountNeeded;
     }
 
-    public void AddItem(ItemData itemToAdd, int amountToAdd)
+    /// <summary>
+    /// Adds items to the inventory.
+    /// </summary>
+    /// <returns>The amount of items that COULD NOT be added (leftovers).</returns>
+    public int AddItem(ItemData itemToAdd, int amountToAdd)
     {
         bool changed = false;
         int remainingAmount = amountToAdd;
 
+        // 1. Try to stack on existing slots first
         foreach (ItemSlot slot in items)
         {
             if (slot.ItemData == itemToAdd && slot.quantity < slot.ItemData.maxStack)
@@ -43,6 +51,9 @@ public class Inventory : MonoBehaviour
             }
         }
 
+        // 2. Create new slots for remaining amount
+        // Note: If you implement a maxSlots check, put it here:
+        // while (remainingAmount > 0 && items.Count < maxSlots)
         while (remainingAmount > 0)
         {
             ItemSlot newSlot = new ItemSlot { ItemData = itemToAdd };
@@ -57,12 +68,16 @@ public class Inventory : MonoBehaviour
         {
             onInventoryUpdated.Invoke();
         }
+
+        return remainingAmount;
     }
 
     public void RemoveItem(ItemSlot preferredSlot, int amountToRemove)
     {
+        // Safety Check: Verify the list actually contains this specific object instance
         if (!items.Contains(preferredSlot))
         {
+            Debug.LogWarning($"Inventory: Preferred slot for {preferredSlot.ItemData.name} not found by reference. Falling back to type-based removal.");
             RemoveItem(preferredSlot.ItemData, amountToRemove);
             return;
         }
@@ -81,6 +96,7 @@ public class Inventory : MonoBehaviour
             }
         }
 
+        // If the preferred slot wasn't enough, continue removing from others
         if (remainingAmount > 0)
         {
             RemoveItem(preferredSlot.ItemData, remainingAmount);
@@ -96,6 +112,7 @@ public class Inventory : MonoBehaviour
         bool changed = false;
         int remainingAmount = amountToRemove;
 
+        // Iterate backwards to safely remove items while looping
         for (int i = items.Count - 1; i >= 0; i--)
         {
             ItemSlot slot = items[i];

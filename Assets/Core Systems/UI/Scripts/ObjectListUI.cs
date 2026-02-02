@@ -61,6 +61,9 @@ public class ObjectListUI : MonoBehaviour
         }
 
         CreateHeaderRow();
+
+        // FIX: Force an initial draw of the list
+        RefreshUI();
     }
 
     private bool InitializeDataSource()
