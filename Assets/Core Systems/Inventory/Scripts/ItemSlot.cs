@@ -1,23 +1,12 @@
-using UnityEngine;
-
 [System.Serializable]
 public class ItemSlot
 {
-    // Serialized backing fields
-    [SerializeField] private ItemData _itemData;
-    [SerializeField] private int _quantity;
+    public ItemData ItemData;
+    public int amount;
 
-    // Public Properties (ItemData, capital I) to satisfy UI reflection
-    public ItemData ItemData
+    public ItemSlot(ItemData data, int amount)
     {
-        get { return _itemData; }
-        set { _itemData = value; }
-    }
-
-    // Public Property for quantity
-    public int quantity
-    {
-        get { return _quantity; }
-        set { _quantity = value; }
+        this.ItemData = data;
+        this.amount = amount;
     }
 }

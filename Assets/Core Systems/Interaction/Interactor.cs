@@ -1,3 +1,5 @@
+using NUnit.Framework;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -23,7 +25,7 @@ public class Interactor : MonoBehaviour
 
     private void Update()
     {
-        if (Time.frameCount % 5 == 0) // Optimization: Don't scan every single frame
+        if (Time.frameCount % 5 == 0)
         {
             ScanForInteractables();
         }
@@ -31,26 +33,34 @@ public class Interactor : MonoBehaviour
 
     private void ScanForInteractables()
     {
-        Vector3 origin = _interactionPoint != null ? _interactionPoint.position : transform.position;
-        int numFound = Physics.OverlapSphereNonAlloc(origin, _interactionRange, _colliders, _interactionLayer);
+        int numFound = Physics.OverlapSphereNonAlloc(transform.position, _interactionRange, _colliders, _interactionLayer);
 
-        IInteractable foundInteractable = null;
+        IInteractable closestInteractable = null;
 
-        if (numFound > 0)
+        for (int i = 0; i < numFound; i++)
         {
-            // Find the closest or most relevant interactable
-            // For now, just pick the first valid one
-            var interactable = _colliders[0].GetComponent<IInteractable>();
-            if (interactable != null)
+            Collider col = _colliders[i];
+
+            if (col.TryGetComponent(out IInteractable interactable))
             {
-                foundInteractable = interactable;
+                if (closestInteractable == null)
+                {
+                    closestInteractable = interactable;
+                }
+
+                else if (
+                    Vector3.Distance(transform.position, (interactable as Component).transform.position) <
+                    Vector3.Distance(transform.position, (closestInteractable as Component).transform.position))
+                {
+                    closestInteractable = interactable;
+                }
             }
         }
 
-        if (foundInteractable != _currentInteractable)
+        if (closestInteractable != _currentInteractable)
         {
-            _currentInteractable = foundInteractable;
-            
+            _currentInteractable = closestInteractable;
+
             if (_currentInteractable != null)
             {
                 OnInteractableFound?.Invoke(_currentInteractable);
@@ -64,10 +74,7 @@ public class Interactor : MonoBehaviour
 
     public void TryInteract()
     {
-        if (_currentInteractable != null)
-        {
-            _currentInteractable.Interact(this);
-        }
+        _currentInteractable?.Interact(this);
     }
 
     public IInteractable GetCurrentInteractable()

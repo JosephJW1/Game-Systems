@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(BaseMover))]
-public class PlayerInputController : MonoBehaviour
+public class PlayerMovementInput : MonoBehaviour
 {
     [Header("Camera")]
     [SerializeField] private Transform cameraTransform;

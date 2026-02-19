@@ -1,141 +1,70 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using System.Collections.Generic;
 
 public class Inventory : MonoBehaviour
 {
-    [field: SerializeField]
-    public List<ItemSlot> items { get; private set; } = new List<ItemSlot>();
+    public List<ItemSlot> slots = new List<ItemSlot>();
 
-    [SerializeField] public UnityEvent onInventoryUpdated;
+    [Header("UI Updates")]
+    public UnityEvent onInventoryChanged; // THIS was the missing piece!
 
-    // Optional: Add a capacity limit later
-    // [SerializeField] private int maxSlots = 20;
-
-    public bool HasEnough(ItemData itemToFind, int amountNeeded)
+    public bool HasEnough(ItemData data, int amountToCheck)
     {
-        int totalAmount = 0;
-        foreach (ItemSlot slot in items)
+        int total = 0;
+        foreach (var slot in slots)
         {
-            if (slot.ItemData == itemToFind)
-            {
-                totalAmount += slot.quantity;
-            }
+            if (slot.ItemData == data) total += slot.amount;
         }
-        return totalAmount >= amountNeeded;
+        return total >= amountToCheck;
     }
 
-    /// <summary>
-    /// Adds items to the inventory.
-    /// </summary>
-    /// <returns>The amount of items that COULD NOT be added (leftovers).</returns>
-    public int AddItem(ItemData itemToAdd, int amountToAdd)
+    public int AddItem(ItemData data, int amountToAdd)
     {
-        bool changed = false;
-        int remainingAmount = amountToAdd;
-
-        // 1. Try to stack on existing slots first
-        foreach (ItemSlot slot in items)
+        foreach (var slot in slots)
         {
-            if (slot.ItemData == itemToAdd && slot.quantity < slot.ItemData.maxStack)
+            if (slot.ItemData == data)
             {
-                int spaceLeft = slot.ItemData.maxStack - slot.quantity;
-                int amountToMove = Mathf.Min(remainingAmount, spaceLeft);
-                if (amountToMove > 0)
-                {
-                    slot.quantity += amountToMove;
-                    remainingAmount -= amountToMove;
-                    changed = true;
-                }
-                if (remainingAmount == 0) break;
+                slot.amount += amountToAdd;
+                onInventoryChanged?.Invoke(); // Tell UI to refresh!
+                return 0;
             }
         }
-
-        // 2. Create new slots for remaining amount
-        // Note: If you implement a maxSlots check, put it here:
-        // while (remainingAmount > 0 && items.Count < maxSlots)
-        while (remainingAmount > 0)
-        {
-            ItemSlot newSlot = new ItemSlot { ItemData = itemToAdd };
-            int amountToMove = Mathf.Min(remainingAmount, itemToAdd.maxStack);
-            newSlot.quantity = amountToMove;
-            remainingAmount -= amountToMove;
-            items.Add(newSlot);
-            changed = true;
-        }
-
-        if (changed)
-        {
-            onInventoryUpdated.Invoke();
-        }
-
-        return remainingAmount;
+        slots.Add(new ItemSlot(data, amountToAdd));
+        onInventoryChanged?.Invoke(); // Tell UI to refresh!
+        return 0;
     }
 
-    public void RemoveItem(ItemSlot preferredSlot, int amountToRemove)
+    public void RemoveItem(ItemSlot specificSlot, int amountToRemove)
     {
-        // Safety Check: Verify the list actually contains this specific object instance
-        if (!items.Contains(preferredSlot))
+        if (slots.Contains(specificSlot))
         {
-            Debug.LogWarning($"Inventory: Preferred slot for {preferredSlot.ItemData.name} not found by reference. Falling back to type-based removal.");
-            RemoveItem(preferredSlot.ItemData, amountToRemove);
-            return;
-        }
-
-        int remainingAmount = amountToRemove;
-
-        int amountFromThisSlot = Mathf.Min(remainingAmount, preferredSlot.quantity);
-        if (amountFromThisSlot > 0)
-        {
-            preferredSlot.quantity -= amountFromThisSlot;
-            remainingAmount -= amountFromThisSlot;
-
-            if (preferredSlot.quantity == 0)
-            {
-                items.Remove(preferredSlot);
-            }
-        }
-
-        // If the preferred slot wasn't enough, continue removing from others
-        if (remainingAmount > 0)
-        {
-            RemoveItem(preferredSlot.ItemData, remainingAmount);
-        }
-        else
-        {
-            onInventoryUpdated.Invoke();
+            specificSlot.amount -= amountToRemove;
+            if (specificSlot.amount <= 0) slots.Remove(specificSlot);
+            onInventoryChanged?.Invoke(); // Tell UI to refresh!
         }
     }
 
-    public void RemoveItem(ItemData itemToRemove, int amountToRemove)
+    public void RemoveItem(ItemData data, int amountToRemove)
     {
-        bool changed = false;
-        int remainingAmount = amountToRemove;
-
-        // Iterate backwards to safely remove items while looping
-        for (int i = items.Count - 1; i >= 0; i--)
+        for (int i = slots.Count - 1; i >= 0; i--)
         {
-            ItemSlot slot = items[i];
-            if (slot.ItemData == itemToRemove)
+            if (slots[i].ItemData == data)
             {
-                int amountToMove = Mathf.Min(remainingAmount, slot.quantity);
-                if (amountToMove > 0)
+                if (slots[i].amount >= amountToRemove)
                 {
-                    slot.quantity -= amountToMove;
-                    remainingAmount -= amountToMove;
-                    changed = true;
+                    slots[i].amount -= amountToRemove;
+                    if (slots[i].amount <= 0) slots.RemoveAt(i);
+                    onInventoryChanged?.Invoke(); // Tell UI to refresh!
+                    return;
                 }
-                if (slot.quantity == 0)
+                else
                 {
-                    items.RemoveAt(i);
+                    amountToRemove -= slots[i].amount;
+                    slots.RemoveAt(i);
                 }
-                if (remainingAmount == 0) break;
             }
         }
-
-        if (changed)
-        {
-            onInventoryUpdated.Invoke();
-        }
+        onInventoryChanged?.Invoke(); // Tell UI to refresh!
     }
 }

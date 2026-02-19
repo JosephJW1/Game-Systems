@@ -1,17 +1,22 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "ItemData", menuName = "Inventory/Item Data")]
+[CreateAssetMenu(fileName = "New Item", menuName = "Economy/Item Data")]
 public class ItemData : ScriptableObject
 {
     [Header("Item Details")]
     [SerializeField] private string _itemName;
     [SerializeField] private Sprite _icon;
 
-    [Header("Stacking")]
-    [SerializeField] private int _maxStack = 1;
+    [Header("World Representation")]
+    [Tooltip("The physical object spawned when dropped.")]
+    [SerializeField] private GameObject _pickupPrefab;
 
-    // Public Properties for external reading (like UI reflection)
+    [Header("Stacking")]
+    [SerializeField] private int _maxStack = 99;
+
+    // Public properties for your UI and Pickup scripts to read safely
     public string itemName => _itemName;
     public Sprite icon => _icon;
+    public GameObject pickupPrefab => _pickupPrefab;
     public int maxStack => _maxStack;
 }
