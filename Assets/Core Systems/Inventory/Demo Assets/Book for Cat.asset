@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da6613e3ee66c1947ad41dfb74107fa9, type: 3}
   m_Name: Book for Cat
   m_EditorClassIdentifier: Assembly-CSharp::TradeRecipe
-  currencyItem: {fileID: 0}
+  currencyItem: {fileID: 11400000, guid: 376143ea0257c704a8d94faa2306f482, type: 2}
   currencyAmount: 1
-  productItem: {fileID: 0}
+  productItem: {fileID: 11400000, guid: a07ccb2b7d8443440a3b5a5528464ed1, type: 2}
   productAmount: 1

@@ -1,131 +1,84 @@
 using UnityEngine;
 using UnityEngine.Events;
 using System.Collections.Generic;
-using CoreSystems.Interaction.Examples; // Namespace for PickupInteractable
 
 public class TransactionManager : MonoBehaviour
 {
     [Header("Identity")]
     public Inventory myInventory;
 
-    [Header("Events")]
-    public UnityEvent<List<TradeRecipe>> onTradeStarted;
-    public UnityEvent onTradeEnded;
+    [Header("UI Binding")]
+    [Tooltip("The ObjectListUI should target this script and read this list!")]
+    public List<TradeOption> activeTradeOptions = new List<TradeOption>();
 
-    // --- STATE ---
+    [Header("Events")]
+    public UnityEvent onShopOpened;
+    public UnityEvent onTradeEnded;
+    public UnityEvent onTradeUpdated;
+
     private Inventory _currentPartnerInventory;
     public Inventory CurrentPartnerInventory => _currentPartnerInventory;
-
-    private bool _canTakeFreely;
-    private bool _canDepositFreely;
-
-    public bool CanTakeFreely => _canTakeFreely;
-    public bool CanDepositFreely => _canDepositFreely;
 
     private void Start()
     {
         if (myInventory == null) myInventory = GetComponent<Inventory>();
     }
 
-    public void BeginTrade(Inventory partnerInventory, List<TradeRecipe> partnerRecipes, bool allowTake, bool allowDeposit)
+    public void BeginTrade(Inventory partnerInventory, List<TradeOption> options)
     {
         _currentPartnerInventory = partnerInventory;
-        _canTakeFreely = allowTake;
-        _canDepositFreely = allowDeposit;
 
-        if (onTradeStarted != null) onTradeStarted.Invoke(partnerRecipes);
+        // CRITICAL FIX: Clear and AddRange so the UI doesn't lose its reflection reference
+        activeTradeOptions.Clear();
+        activeTradeOptions.AddRange(options);
+
+        // Evaluate CanAfford / IsInStock immediately
+        EvaluateAllOptions();
+
+        if (onShopOpened != null) onShopOpened.Invoke();
+        if (onTradeUpdated != null) onTradeUpdated.Invoke();
     }
 
     public void EndTrade()
     {
         _currentPartnerInventory = null;
+        activeTradeOptions.Clear();
         if (onTradeEnded != null) onTradeEnded.Invoke();
     }
 
-    public void GiveItemToPartner(ItemSlot slot, int amount = 1)
+    public void ExecuteTradeOption(object optionObj)
+    {
+        TradeOption option = optionObj as TradeOption;
+
+        if (option == null || !option.IsValid) return;
+
+        if (!myInventory.HasEnough(option.currencyItem, option.currencyAmount) ||
+            !_currentPartnerInventory.HasEnough(option.productItem, option.productAmount)) return;
+
+        // Exchange Items
+        myInventory.RemoveItem(option.currencyItem, option.currencyAmount);
+        _currentPartnerInventory.AddItem(option.currencyItem, option.currencyAmount);
+
+        _currentPartnerInventory.RemoveItem(option.productItem, option.productAmount);
+        int leftovers = myInventory.AddItem(option.productItem, option.productAmount);
+
+        if (leftovers > 0) _currentPartnerInventory.AddItem(option.productItem, leftovers);
+
+        // Re-evaluate UI options
+        EvaluateAllOptions();
+
+        // Tell UI to refresh
+        if (onTradeUpdated != null) onTradeUpdated.Invoke();
+    }
+
+    private void EvaluateAllOptions()
     {
         if (_currentPartnerInventory == null) return;
 
-        if (!_canDepositFreely)
+        foreach (var option in activeTradeOptions)
         {
-            Debug.LogWarning("You are not allowed to deposit items into this container.");
-            return;
-        }
-
-        TransferFreeItem(slot, myInventory, _currentPartnerInventory, amount);
-    }
-
-    public void TakeItemFromPartner(ItemSlot slot, int amount = 1)
-    {
-        if (_currentPartnerInventory == null) return;
-
-        if (!_canTakeFreely)
-        {
-            Debug.LogWarning("You are not allowed to take items from this container freely.");
-            return;
-        }
-
-        TransferFreeItem(slot, _currentPartnerInventory, myInventory, amount);
-    }
-
-    public void ExecuteRecipe(TradeRecipe recipe)
-    {
-        if (recipe == null || _currentPartnerInventory == null) return;
-
-        bool iHaveCurrency = myInventory.HasEnough(recipe.currencyItem, recipe.currencyAmount);
-        bool partnerHasProduct = _currentPartnerInventory.HasEnough(recipe.productItem, recipe.productAmount);
-
-        if (iHaveCurrency && partnerHasProduct)
-        {
-            // Execute the Trade
-            myInventory.RemoveItem(recipe.currencyItem, recipe.currencyAmount);
-            _currentPartnerInventory.AddItem(recipe.currencyItem, recipe.currencyAmount);
-
-            _currentPartnerInventory.RemoveItem(recipe.productItem, recipe.productAmount);
-            int leftovers = myInventory.AddItem(recipe.productItem, recipe.productAmount);
-
-            if (leftovers > 0)
-            {
-                _currentPartnerInventory.AddItem(recipe.productItem, leftovers);
-                Debug.LogWarning("Your inventory is full! Could not take the item.");
-            }
-            else
-            {
-                Debug.Log($"<color=green>SUCCESS:</color> Bought {recipe.productAmount} {recipe.productItem.itemName}!");
-            }
-        }
-        else if (!iHaveCurrency)
-        {
-            Debug.LogWarning($"<color=orange>FAILED:</color> You do not have enough {recipe.currencyItem.itemName} to afford this!");
-        }
-        else if (!partnerHasProduct)
-        {
-            Debug.LogWarning($"<color=orange>FAILED:</color> The Merchant does not have enough {recipe.productItem.itemName} in stock!");
-        }
-    }
-
-    public void DropItem(object itemObj, int amount)
-    {
-        ItemSlot slot = itemObj as ItemSlot;
-        if (slot == null || slot.ItemData.pickupPrefab == null) return;
-
-        if (myInventory.HasEnough(slot.ItemData, amount))
-        {
-            myInventory.RemoveItem(slot, amount);
-
-            GameObject droppedObj = Instantiate(slot.ItemData.pickupPrefab, transform.position + transform.forward + Vector3.up, Random.rotation);
-            var pickup = droppedObj.GetComponent<PickupInteractable>();
-            if (pickup != null) pickup.Setup(slot.ItemData, amount);
-        }
-    }
-
-    private void TransferFreeItem(ItemSlot slot, Inventory from, Inventory to, int amount)
-    {
-        if (from.HasEnough(slot.ItemData, amount))
-        {
-            from.RemoveItem(slot, amount);
-            int leftovers = to.AddItem(slot.ItemData, amount);
-            if (leftovers > 0) from.AddItem(slot.ItemData, leftovers);
+            option.CanAfford = myInventory.HasEnough(option.currencyItem, option.currencyAmount);
+            option.IsInStock = _currentPartnerInventory.HasEnough(option.productItem, option.productAmount);
         }
     }
 }

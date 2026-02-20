@@ -18,8 +18,13 @@ public class ButtonRowUI : RowUI
         button.onClick.AddListener(() => action(item));
     }
 
-    public void UpdateItem(object item)
+    // NEW: Added isInteractable parameter
+    public void UpdateItem(object item, bool isInteractable = true)
     {
         this.item = item;
+        if (button != null)
+        {
+            button.interactable = isInteractable;
+        }
     }
 }

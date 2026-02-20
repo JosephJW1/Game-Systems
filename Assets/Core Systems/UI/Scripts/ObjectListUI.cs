@@ -20,6 +20,11 @@ public class ObjectListUI : MonoBehaviour
     [SerializeField] string listName;
     [SerializeField] List<PropertySelector> propertiesToLog;
 
+    [Header("Row Interaction")]
+    [Tooltip("Leave blank to always be clickable. If set, must point to a boolean property/field.")]
+    [SerializeField] string interactablePropertyPath;
+    [SerializeField] private UnityEvent<object> onRowClicked;
+
     [Header("UI Prefabs")]
     [SerializeField] GameObject rowPrefab;
     [SerializeField] GameObject buttonRowPrefab;
@@ -27,15 +32,13 @@ public class ObjectListUI : MonoBehaviour
     [SerializeField] GameObject imageCellPrefab;
     [SerializeField] Transform rowContainer;
 
-    [Header("Row Action")]
-    [SerializeField] private UnityEvent<object> onRowClicked;
-
     private BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
     private List<RowUI> rowPool = new List<RowUI>();
     private IList sourceList;
 
     private List<CachedProperty> cachedProperties = new List<CachedProperty>();
+    private CachedProperty interactableAccessor; // Caches the interactable bool
 
     private bool isButtonRow;
     private GameObject activePrefab;
@@ -61,8 +64,6 @@ public class ObjectListUI : MonoBehaviour
         }
 
         CreateHeaderRow();
-
-        // FIX: Force an initial draw of the list
         RefreshUI();
     }
 
@@ -96,7 +97,6 @@ public class ObjectListUI : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("List is empty and not a generic List<T>, cannot cache property paths yet. Will try again on Refresh.", this);
             return true;
         }
 
@@ -145,12 +145,18 @@ public class ObjectListUI : MonoBehaviour
         {
             cachedProperties.Add(BuildPropertyAccessors(itemType, propSelector.propertyName));
         }
+
+        // Cache the interactable bool if specified
+        if (!string.IsNullOrEmpty(interactablePropertyPath))
+        {
+            interactableAccessor = BuildPropertyAccessors(itemType, interactablePropertyPath);
+        }
     }
 
     private void CreateHeaderRow()
     {
         if (propertiesToLog == null || propertiesToLog.Count == 0) return;
-        if (rowPrefab == null || textCellPrefab == null) { Debug.LogWarning("Cannot create header row. Prefabs are not assigned.", this); return; }
+        if (rowPrefab == null || textCellPrefab == null) return;
 
         Transform container = (rowContainer != null) ? rowContainer : transform;
         GameObject headerRowInstance = Instantiate(rowPrefab, container);
@@ -163,21 +169,18 @@ public class ObjectListUI : MonoBehaviour
             if (textCell != null)
             {
                 textCell.SetValue(propSelector.label);
-                if (propSelector.centerHeader)
-                {
-                    textCell.SetAlignment(TextAlignmentOptions.Center);
-                }
+                if (propSelector.centerHeader) textCell.SetAlignment(TextAlignmentOptions.Center);
             }
-            else { Debug.LogError("Text Cell Prefab does not have a TextCell component.", cellInstance); }
 
             BaseCell baseCell = cellInstance.GetComponent<BaseCell>();
-            if (baseCell != null) { baseCell.ConfigureLayout(propSelector.layoutRatio); }
-            else { Debug.LogError("Text Cell Prefab is missing the BaseCell component!", cellInstance); }
+            if (baseCell != null) baseCell.ConfigureLayout(propSelector.layoutRatio);
         }
     }
 
     public void RefreshUI()
     {
+        Debug.Log($"<color=cyan>RefreshUI Triggered!</color> sourceList is: {(sourceList == null ? "NULL" : sourceList.Count + " items")}");
+
         if (sourceList == null) { return; }
 
         if (cachedProperties.Count != propertiesToLog.Count && sourceList.Count > 0 && sourceList[0] != null)
@@ -202,7 +205,6 @@ public class ObjectListUI : MonoBehaviour
             {
                 GameObject newRowGO = Instantiate(activePrefab, container);
                 rowInstance = newRowGO.GetComponent<RowUI>();
-                if (rowInstance == null) { Debug.LogError("Row Prefab is missing the RowUI component!", newRowGO); return; }
 
                 if (isButtonRow)
                 {
@@ -223,9 +225,16 @@ public class ObjectListUI : MonoBehaviour
                 continue;
             }
 
+            // --- EVALUATE INTERACTABILITY ---
+            bool isRowInteractable = true;
+            if (interactableAccessor != null && interactableAccessor.Getter(item) is bool b)
+            {
+                isRowInteractable = b;
+            }
+
             if (isButtonRow)
             {
-                ((ButtonRowUI)rowInstance).UpdateItem(item);
+                ((ButtonRowUI)rowInstance).UpdateItem(item, isRowInteractable);
             }
 
             for (int j = 0; j < propertiesToLog.Count; j++)
@@ -257,12 +266,10 @@ public class ObjectListUI : MonoBehaviour
 
         if (typeof(Sprite).IsAssignableFrom(declaredType))
         {
-            if (imageCellPrefab == null) { Debug.LogError("Image Cell Prefab is not assigned!"); return null; }
             cellInstance = Instantiate(imageCellPrefab, rowTransform);
         }
         else
         {
-            if (textCellPrefab == null) { Debug.LogError("Text Cell Prefab is not assigned!"); return null; }
             cellInstance = Instantiate(textCellPrefab, rowTransform);
         }
 
