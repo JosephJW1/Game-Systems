@@ -111,6 +111,12 @@ public class ObjectListUI : MonoBehaviour
             return new CachedProperty { Getter = (item) => null, PropertyType = typeof(object) };
         }
 
+        if (path.StartsWith("\"") && path.EndsWith("\"") && path.Length >= 2)
+        {
+            string cleanValue = path.Substring(1, path.Length - 2);
+            return new CachedProperty { Getter = (item) => cleanValue, PropertyType = typeof(string) };
+        }
+
         try
         {
             ParameterExpression param = Expression.Parameter(typeof(object), "item");

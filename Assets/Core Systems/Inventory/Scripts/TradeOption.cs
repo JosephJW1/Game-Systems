@@ -19,6 +19,6 @@ public class TradeOption
     public bool IsValid => CanAfford && IsInStock;
 
     // Helper strings for ObjectListUI
-    public string CostText => $"{currencyAmount}x {(currencyItem != null ? currencyItem.itemName : "Unknown")}";
-    public string RewardText => $"{productAmount}x {(productItem != null ? productItem.itemName : "Unknown")}";
+    public string currencyText => $"{(currencyItem != null ? currencyItem.itemName : "Unknown")} x{currencyAmount}";
+    public string productText => $"{(productItem != null ? productItem.itemName : "Unknown")} x{productAmount}";
 }

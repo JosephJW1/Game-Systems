@@ -7,8 +7,9 @@ public class CharacterAnimator : MonoBehaviour
     private Animator animator;
 
     // Hashes
-    private static readonly int SpeedHash = Animator.StringToHash("Speed");
+    private static readonly int HorizontalVelocityHash = Animator.StringToHash("HorizontalVelocity");
     private static readonly int VerticalVelocityHash = Animator.StringToHash("VerticalVelocity");
+    private static readonly int JumpHash = Animator.StringToHash("Jump");
     private static readonly int IsGroundedHash = Animator.StringToHash("IsGrounded");
     private static readonly int IsCrouchingHash = Animator.StringToHash("IsCrouching");
     private static readonly int IsChargingHash = Animator.StringToHash("IsCharging");
@@ -47,11 +48,12 @@ public class CharacterAnimator : MonoBehaviour
         animator.SetBool(IsGroundedHash, mover.IsGrounded);
         animator.SetFloat(VerticalVelocityHash, mover.Velocity.y);
 
-        // 2. Horizontal Speed
-        Vector3 horizontalVelocity = mover.Velocity;
-        horizontalVelocity.y = 0;
+        // 2. Speed
+        float horizontalVelocity = mover.Velocity.x;
+        float verticalVelocity = mover.Velocity.z;
 
-        animator.SetFloat(SpeedHash, horizontalVelocity.magnitude, 0.1f, Time.deltaTime);
+        animator.SetFloat(HorizontalVelocityHash, horizontalVelocity, 0.1f, Time.deltaTime);
+        animator.SetFloat(VerticalVelocityHash, verticalVelocity, 0.1f, Time.deltaTime);
 
         // 3. States
         animator.SetBool(IsCrouchingHash, mover.IsCrouching);
