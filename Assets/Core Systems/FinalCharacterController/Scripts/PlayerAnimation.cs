@@ -2,72 +2,91 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace GinjaGaming.FinalCharacterController
 {
     public class PlayerAnimation : MonoBehaviour
     {
         [SerializeField] private Animator _animator;
-        [SerializeField] private BaseMover _mover;
         [SerializeField] private float locomotionBlendSpeed = 4f;
 
+        private PlayerLocomotionInput _playerLocomotionInput;
         private PlayerState _playerState;
+        private PlayerController _playerController;
         private PlayerActionsInput _playerActionsInput;
 
-        // Locomotion Hashes
-        private static readonly int inputMagnitudeHash = Animator.StringToHash("inputMagnitude");
-        private static readonly int isGroundedHash = Animator.StringToHash("isGrounded");
-        private static readonly int isFallingHash = Animator.StringToHash("isFalling");
-        private static readonly int isJumpingHash = Animator.StringToHash("isJumping");
-        private static readonly int isCrouchingHash = Animator.StringToHash("isCrouching");
+        // Locomotion
+        private static int inputXHash = Animator.StringToHash("inputX");
+        private static int inputYHash = Animator.StringToHash("inputY");
+        private static int inputMagnitudeHash = Animator.StringToHash("inputMagnitude");
+        private static int isIdlingHash = Animator.StringToHash("isIdling");
+        private static int isGroundedHash = Animator.StringToHash("isGrounded");
+        private static int isFallingHash = Animator.StringToHash("isFalling");
+        private static int isJumpingHash = Animator.StringToHash("isJumping");
 
-        // Action Hashes (Keeping your existing action setup)
-        private static readonly int isAttackingHash = Animator.StringToHash("isAttacking");
-        private static readonly int isGatheringHash = Animator.StringToHash("isGathering");
+        // Actions
+        private static int isAttackingHash = Animator.StringToHash("isAttacking");
+        private static int isGatheringHash = Animator.StringToHash("isGathering");
+        private static int isPlayingActionHash = Animator.StringToHash("isPlayingAction");
+        private int[] actionHashes;
 
-        private Vector3 _currentBlendInput;
+        // Camera/Rotation
+        private static int isRotatingToTargetHash = Animator.StringToHash("isRotatingToTarget");
+        private static int rotationMismatchHash = Animator.StringToHash("rotationMismatch");
+
+        private Vector3 _currentBlendInput = Vector3.zero;
+
+        private float _sprintMaxBlendValue = 1.5f;
+        private float _runMaxBlendValue = 1.0f;
+        private float _walkMaxBlendValue = 0.5f;
 
         private void Awake()
         {
-            if (_animator == null) _animator = GetComponent<Animator>();
-            if (_mover == null) _mover = GetComponentInParent<BaseMover>();
+            _playerLocomotionInput = GetComponent<PlayerLocomotionInput>();
+            _playerState = GetComponent<PlayerState>();
+            _playerController = GetComponent<PlayerController>();
+            _playerActionsInput = GetComponent<PlayerActionsInput>();
 
-            _playerState = GetComponentInParent<PlayerState>();
-            _playerActionsInput = GetComponentInParent<PlayerActionsInput>();
+            actionHashes = new int[] { isGatheringHash };
         }
 
         private void Update()
         {
-            if (_mover == null) return;
-
-            UpdateLocomotionAnimations();
-            UpdateActionAnimations();
+            UpdateAnimationState();
         }
 
-        private void UpdateLocomotionAnimations()
+        private void UpdateAnimationState()
         {
-            // Velocity magnitude on the XZ plane for blending
-            Vector3 horizontalVelocity = new Vector3(_mover.Velocity.x, 0, _mover.Velocity.z);
-            float speedPercent = horizontalVelocity.magnitude / _mover.CurrentMaxSpeed;
+            bool isIdling = _playerState.CurrentPlayerMovementState == PlayerMovementState.Idling;
+            bool isRunning = _playerState.CurrentPlayerMovementState == PlayerMovementState.Running;
+            bool isSprinting = _playerState.CurrentPlayerMovementState == PlayerMovementState.Sprinting;
+            bool isJumping = _playerState.CurrentPlayerMovementState == PlayerMovementState.Jumping;
+            bool isFalling = _playerState.CurrentPlayerMovementState == PlayerMovementState.Falling;
+            bool isGrounded = _playerState.InGroundedState();
+            bool isPlayingAction = actionHashes.Any(hash => _animator.GetBool(hash));
 
-            _animator.SetFloat(inputMagnitudeHash, speedPercent, 0.1f, Time.deltaTime);
+            bool isRunBlendValue = isRunning || isJumping || isFalling;
 
-            // Ground and Air States
-            _animator.SetBool(isGroundedHash, _mover.IsGrounded);
-            _animator.SetBool(isFallingHash, !_mover.IsGrounded && _mover.Velocity.y < 0f);
-            _animator.SetBool(isJumpingHash, !_mover.IsGrounded && _mover.Velocity.y > 0f);
+            Vector2 inputTarget = isSprinting ? _playerLocomotionInput.MovementInput * _sprintMaxBlendValue :
+                                  isRunBlendValue ? _playerLocomotionInput.MovementInput * _runMaxBlendValue : 
+                                                    _playerLocomotionInput.MovementInput * _walkMaxBlendValue;
 
-            // Crouch state from BaseMover
-            _animator.SetBool(isCrouchingHash, _mover.IsCrouching);
-        }
+            _currentBlendInput = Vector3.Lerp(_currentBlendInput, inputTarget, locomotionBlendSpeed * Time.deltaTime);
 
-        private void UpdateActionAnimations()
-        {
-            if (_playerActionsInput == null) return;
-
-            // Retaining your original action states mapping
+            _animator.SetBool(isGroundedHash, isGrounded);
+            _animator.SetBool(isIdlingHash, isIdling);
+            _animator.SetBool(isFallingHash, isFalling);
+            _animator.SetBool(isJumpingHash, isJumping);
+            _animator.SetBool(isRotatingToTargetHash, _playerController.IsRotatingToTarget);
             _animator.SetBool(isAttackingHash, _playerActionsInput.AttackPressed);
             _animator.SetBool(isGatheringHash, _playerActionsInput.GatherPressed);
+            _animator.SetBool(isPlayingActionHash, isPlayingAction);
+
+            _animator.SetFloat(inputXHash, _currentBlendInput.x);
+            _animator.SetFloat(inputYHash, _currentBlendInput.y);
+            _animator.SetFloat(inputMagnitudeHash, _currentBlendInput.magnitude);
+            _animator.SetFloat(rotationMismatchHash, _playerController.RotationMismatch);
         }
     }
 }
